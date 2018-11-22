@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# Script-Template; This is only a template for your own installation script with almost any Linux distro support.
+# Copyright (C) 2018 LinuxSquare
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version
+
+# This program is distributed in the hope it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTYBILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Generel Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program, If not, see <https://www.gnu.org/licenses/>.
+
+. /etc/os-release
+OS=$ID
+pkgname=
+pkgver=1.0
+pkgdesc=''
+license='GPLv3'
+url=
+LOCATION=
+prefixname=
+archdepends=""
+debdepends=""
+fedoradepends=""
+susedepend=""
+
+
+
+WHITE='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+ORANGE='\e[38;5;202m'
+
+function redecho() {
+  echo -e ${RED}${*}${WHITE}
+}
+
+function errorQuit() {
+  redecho $1
+  exit 1
+}
+
+function greenecho() {
+  echo -e ${GREEN}${*}${WHITE}
+}
+
+function orangeecho() {
+  echo -e ${ORANGE}${*}${WHITE}
+}
+
+function help() {
+  echo -e "  -i, --install\t\t\t Installs the software"
+  echo -e "      --uninstall\t\t\t Uninstalls the software"
+}
+
+function uninstall() {
+
+}
+
+function checkConnection() {
+  orangeecho "Checking your internet-connection"
+  wget --spider --quiet http://example.com
+  if [[ $? != 0 ]]; then
+    REASON="No internet-connection"
+    errorQuit "Uh oh, and error occured during installation, please fix the problem first, before you retry.
+    \nErrorCode: $REASON"
+  else
+    greenecho "Connection OK"
+  fi
+}
+
+function dependencies() {
+  if [[ -d $LOCATION/$prefixname ]]; then
+    errorQuit "It seems that you have already used this script.
+    \nPlease uninstall the software first before you try again."
+  fi
+  greenecho "Installing missing dependencies. This may take a while, depending on your internet-connection..."
+  if [[ $OS = "arch" ]]; then
+    sudo pacman -S ${archdepends} --quiet --noconfirm --noprogressbar
+  elif [[ $OS = "debian" || $OS = "ubuntu" || $OS = "linuxmint" ]]; then
+    sudo apt-get -qq install ${debdepends} -y
+  elif [[ $OS = "fedora" ]]; then
+    sudo dnf -q install ${fedoradepends} -y
+  elif [[ $OS = "opensuse-tumbleweed" || "opensuse-leap" ]]; then
+    sudo zypper in --no-confirm ${susedepends}
+  fi
+}
+
+function buildwine() {
+  greenecho "Installing Wine from the repository"
+  if [[ $OS = "arch" ]]; then
+    sudo pacman -Syu --quiet --noconfirm --noprogressbar
+    sudo pacman -S wine-staging --quiet --noconfirm --noprogressbar
+  elif [[ $OS = "debian" || $OS = "ubuntu" || $OS = "linuxmint" ]]; then
+    DEBVER=$VERSION_ID
+    sudo dpkg --add-architecture i386
+    wget -nc --quiet https://dl.winehq.org/wine-builds/Release.key
+    sudo apt-key add Release.key
+    if [[ $DEBVER = "9" ]]; then
+      echo "deb https://dl.winehq.org/wine-builds/debian/ stretch main" | sudo tee /etc/apt/sources.list.d/wine.list
+    elif [[ $DEBVER = "8" ]]; then
+      echo "deb https://dl.winehq.org/wine-builds/debian/ jessie main" | sudo tee /etc/apt/sources.list.d/wine.list
+    elif [[ $OS = "ubuntu" ]]; then
+      sudo apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/
+    elif [[ $DEBVER = "19" ]]; then
+      sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ bionic main"
+    elif [[ $DEBVER = "18.3" || $DEBVER = "18.2" || $DEBVER = "18.1" || $DEBVER = "18" ]]; then
+      sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main"
+    else
+    rm -f Release.key
+      errorQuit "Unsupported distro version. This script currently supports only:
+      \nDebian 9 and 8
+      \nAny kind of Ubuntu version
+      \nLinux Mint 18.x and 19.0"
+    fi
+    sudo apt-get -qq update && sudo apt-get -qq upgrade
+    sudo apt-get -qq install --install-recommends winehq-staging
+  elif [[ $OS = "fedora" ]]; then
+    FEDORAVER=$VERSION_ID
+    sudo dnf -q install $fedoradepends
+    if [[ $FEDORAVER = "29" ]]; then
+      sudo dnf -q config-manager --add-repo https://download.opensuse.org/repositories/Emulators:/Wine:/Fedora/Fedora_29_standard/Emulators:Wine:Fedora.repo
+    elif [[ $FEDORAVER = "28" ]]; then
+      sudo dnf -q config-manager --add-repo https://dl.winehq.org/wine-builds/fedora/28/winehq.repo
+    else
+      errorQuit "Unsupported Fedora version. Please make sure you're using either version 28 or 29"
+    fi
+    sudo dnf -q install winehq-staging
+  elif [[ $OS = "opensuse-tumbleweed" ]]; then
+    sudo zypper in -y $susedepend
+    sudo zypper ar -f http://download.opensuse.org/repositories/Emulators:/Wine/openSUSE_Tumbleweed/Emulators:Wine.repo | echo 'a'
+    sudo zypper in -y wine-staging
+  elif [[ $OS = "opensuse-leap" ]]; then
+    SUSEVER=$VERSION
+    sudo zypper -y in $susedepend
+    if [[ $SUSEVER = "15.0" ]]; then
+      sudo zypper ar -f http://download.opensuse.org/repositories/Emulators:/Wine/openSUSE_Leap_15.0/Emulators:Wine.repo | echo 'a'
+    elif [[ $SUSEVER = "42.3" ]]; then
+      sudo zypper ar -f http://download.opensuse.org/repositories/Emulators:/Wine/openSUSE_Leap_42.3/Emulators:Wine.repo | echo 'a'
+    else
+      errorQuit "Unsupported openSUSE version. Please make sure you're using either version 42.3, 15.0 or Tumbleweed"
+    fi
+    sudo zypper in -y wine-staging
+  fi
+}
+
+function preparePrefix() {
+
+}
+
+function install() {
+
+}
+
+if [[ $1 = "-i" || $1 = "--install" ]]; then
+  checkConnection
+  dependencies
+  buildwine
+  preparePrefix
+  install
+elif [[ $1 = "--uninstall" ]]; then
+  uninstall
+elif [[ $1 = "--help" ]]; then
+  help
+else
+  echo Type $0 --help for more information
+fi
